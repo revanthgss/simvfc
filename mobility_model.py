@@ -4,7 +4,7 @@ import pandas as pd
 
 class AbstractMobiltyModel(ABC):
 
-    def get_position(self):
+    def positions(self):
         """Generator function that returns the next position of the vehicle"""
         pass
 
@@ -17,7 +17,7 @@ class DynamicMobilityModel(AbstractMobiltyModel):
         self.trajectory = df[df["Vehicle_ID"]
                              == vehicle.id].sort_values(by="Frame_ID")
 
-    def get_position(self):
+    def positions(self):
         """
         Starts with first position in the data and yield position
         """
