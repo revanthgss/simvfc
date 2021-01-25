@@ -7,6 +7,7 @@ class Vehicle:
         self.driving_process = env.process(self._drive(env))
         self.mobility_model = None
         self._position = None
+        self.allotted_fog_node = None
 
     def get_position(self):
         return self._position
@@ -15,7 +16,7 @@ class Vehicle:
         self.mobility_model = mobility_model
 
     def _drive(self, env):
-        for position in self.mobility_model.positions():
+        for position in self.mobility_model.positions(self):
             self._position = position
-            print(f'{i} --> Vehicle {self.id} is at {self._position}')
+            print(f'Vehicle {self.id} is at {self._position}')
             yield env.timeout(1)

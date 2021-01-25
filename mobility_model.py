@@ -2,25 +2,26 @@ from abc import ABC
 import pandas as pd
 
 
-class AbstractMobiltyModel(ABC):
+class MobiltyModel(ABC):
 
     def positions(self):
         """Generator function that returns the next position of the vehicle"""
         pass
 
 
-class DynamicMobilityModel(AbstractMobiltyModel):
+class DynamicMobilityModel(MobiltyModel):
 
-    def __init__(self, file_path, vehicle):
+    def __init__(self, file_path):
         """Takes a mobility dataset and generates vehicles positions"""
-        df = pd.read_csv(file_path)
-        self.trajectory = df[df["Vehicle_ID"]
-                             == vehicle.id].sort_values(by="Frame_ID")
+        self.df = pd.read_csv(file_path)
+        self.trajectory = None
 
-    def positions(self):
+    def positions(self, vehicle):
         """
         Starts with first position in the data and yield position
         """
+        self.trajectory = self.df[self.df["Vehicle_ID"]
+                             == vehicle.id].sort_values(by="Frame_ID")
         cur_idx = 0
         while True:
             try:
