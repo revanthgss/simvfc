@@ -1,15 +1,14 @@
 from simpy.resources import container
 import math
 
+
 class Node:
     '''A node class that is used to create static nodes in a cloud network'''
 
-    def __init__(self, env, coverage_radius, bandwidth, vehicle_arrival_rate, vehicle_departure_rate, capacity, position=(0, 0)):
+    def __init__(self, env, coverage_radius, bandwidth, capacity=100, position=(0, 0)):
         self.env = env
         self.coverage_radius = coverage_radius
         self.bandwidth = bandwidth
-        self.vehicle_arrival_rate = vehicle_arrival_rate
-        self.vehicle_departure_rate = vehicle_departure_rate
         self.resource_container = container.Container(
             env, capacity=capacity, init=capacity)
         self.position = position
@@ -27,23 +26,27 @@ class Node:
         # TODO: Add the formula for getting sinr here
         return 10
 
-    def _serve_vehicle(self, env, vehicle, time):
+    def _serve_vehicle(self, env, service, time):
         """Allots some resources to vehicles"""
         # TODO: Implement an interrupt here to enable vehicle for reallocation and make vehicle's allotted fog node as none
+        # TODO: Calculate service time from the distribution of arrival rate and departure rate
         for t in range(time):
             # Calculate required resources at that time
-            required_resource_blocks = vehicle.desired_data_rate / \
-                (self.bandwidth*math.log2(1+self._get_sinr(vehicle)))
+            required_resource_blocks = service.desired_data_rate / \
+                (self.bandwidth*math.log2(1+self._get_sinr(service.vehicle)))
             # Allot resources to that vehicle
             yield self.resource_container.get(required_resource_blocks)
             print(
-                f'{required_resource_blocks} resources allotted to vehicle {vehicle.name}')
+                f'{required_resource_blocks} resources allotted to vehicle {service.vehicle.id}')
             # Serve that vehicle for 1 second
             yield env.timeout(1)
             # Free resources from that vehicle
             yield self.resource_container.put(required_resource_blocks)
 
-    def add_vehicle(self, vehicle, time):
+    def add_vehicle(self, service, time):
         """Adds a vehicle process to provide services to it"""
-        self._vehicle_services[vehicle.name] = self.env.process(
-            self._serve_vehicle(self.env, vehicle, time))
+        self._vehicle_services[service.id] = {
+            "service": service,
+            "process": self.env.process(
+                self._serve_vehicle(self.env, service, time))
+        }
