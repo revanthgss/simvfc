@@ -31,6 +31,7 @@ class SignalAwareAllocationPolicy(AllocationPolicy):
         best_fog_node = feasible_fog_nodes[sinr_values.index(max(sinr_values))]
         best_fog_node.add_service(service)
         vehicle.allotted_fog_node = best_fog_node
+        return best_fog_node
 
 
 class CapacityAwareAllocationPolicy(AllocationPolicy):
@@ -45,3 +46,4 @@ class CapacityAwareAllocationPolicy(AllocationPolicy):
             max(available_resources))]
         best_fog_node.add_service(vehicle)
         vehicle.allotted_fog_node = best_fog_node
+        return best_fog_node
