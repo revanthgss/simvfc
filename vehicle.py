@@ -12,7 +12,7 @@ class Service:
 class Vehicle:
     """Vehicle class to simulate driving vehicles in environment"""
 
-    def __init__(self, vehicle_id, env, service_store, desired_data_rate):
+    def __init__(self, vehicle_id, env, desired_data_rate):
         self.id = vehicle_id
         self.driving_process = env.process(self._drive(env))
         self.mobility_model = None
@@ -29,5 +29,5 @@ class Vehicle:
     def _drive(self, env):
         for position in self.mobility_model.positions(self):
             self._position = position
-            print(f'Vehicle {self.id} is at {self._position}')
+            # print(f'Vehicle {self.id} is at {self._position}')
             yield env.timeout(1)
