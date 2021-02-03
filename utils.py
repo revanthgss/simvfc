@@ -13,3 +13,12 @@ def find_feasible_fog_nodes(fog_nodes, vehicle):
         if distance(fog_node.position, vehicle.get_position()) < fog_node.coverage_radius:
             feasible_fog_nodes.append(fog_node)
     return feasible_fog_nodes
+
+
+def find_vehicles(vehicles, fog_node):
+    """Returns all the vehicles that are in the coverage radius of the given fog_node"""
+    possible_vehicles = []
+    for vehicle in vehicles:
+        if distance(fog_node.position, vehicle.get_position()) < fog_node.coverage_radius:
+            possible_vehicles.append(vehicle)
+    return possible_vehicles

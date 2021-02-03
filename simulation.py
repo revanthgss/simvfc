@@ -7,6 +7,7 @@ from vehicle import Service
 from topology import Topology
 from mobility_model import DynamicMobilityModel
 from policy import SignalAwareAllocationPolicy, CapacityAwareAllocationPolicy
+from orchestration import DynamicResourceOrchestrationModule
 import json
 import random
 
@@ -31,6 +32,8 @@ class Simulation:
         self.env.process(self._update_vehicles(self.env))
         # Initialise policy
         self._init_policy()
+        if self.config.get('orchestration_scheme', None):
+            self.env.process(self._orchestrate_services(self.env))
 
     def _init_fog_nodes(self):
         self.fog_nodes = [
@@ -98,6 +101,16 @@ class Simulation:
         print(
             f'Stopping simulation as {self.total_services} services are served')
         self.stop_simulation_event.succeed()
+
+    def _orchestrate_services(self, env):
+        """Orchestrate services periodically"""
+        if self.config["orchestration_scheme"] == 'dro':
+            self.orchestration_module = DynamicResourceOrchestrationModule(
+                self.fog_nodes, self.mobility_model.vehicles)
+
+        while True:
+            self.orchestration_module.step()
+            yield env.timeout(2)
 
     def run(self):
         self.env.run(until=self.stop_simulation_event)

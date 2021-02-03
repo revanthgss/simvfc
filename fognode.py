@@ -20,9 +20,9 @@ class Node:
         self.coverage_radius = coverage_radius
         self.bandwidth = bandwidth
         self.sigma = 0.05
-        capacity = Node.BADNWIDTH_CAPACITY_MAPPING[str(bandwidth)]
+        self.capacity = Node.BADNWIDTH_CAPACITY_MAPPING[str(bandwidth)]
         self.resource_container = Container(
-            env, capacity=capacity, init=capacity)
+            env, capacity=self.capacity, init=self.capacity)
         self._vehicle_services = {}
         self.in_service = False
 
@@ -31,7 +31,7 @@ class Node:
         self.position = (x, y)
 
     def _get_channel_gain(self, vehicle):
-        return abs(np.random.rayleigh())**2/distance(self.position, vehicle.get_position())**3.7
+        return 1/distance(self.position, vehicle.get_position())**3.7
 
     def _get_sinr(self, vehicle):
         """
@@ -43,14 +43,19 @@ class Node:
         interference = 0
         for service_id, obj in self._vehicle_services.items():
             if vehicle.id != obj["service"].vehicle.id:
-                interference += 1000 * \
+                interference += 500 * \
                     self._get_channel_gain(obj["service"].vehicle)
+        # print(f'sinr={10*math.log10(signal/(noise+interference))}')
         return signal/(noise + interference)
+
+    def get_resource_blocks(self, service):
+        return int(service.desired_data_rate*1000 /
+                   (180*math.log2(1+self._get_sinr(service.vehicle))))
 
     def _serve_vehicle(self, env, service):
         """Allots some resources to vehicles"""
-        required_resource_blocks = int(service.desired_data_rate*1000 /
-                                       (180*math.log2(1+self._get_sinr(service.vehicle))))
+        required_resource_blocks = self.get_resource_blocks(service)
+        self._vehicle_services[service.id]['resource_blocks'] = required_resource_blocks
         # print(required_resource_blocks)
         # Allot resources to that vehicle
         try:
@@ -64,6 +69,9 @@ class Node:
             pass
         # Free resources from that vehicle
         yield self.resource_container.put(required_resource_blocks)
+
+    def get_vehicle_services(self):
+        return self._vehicle_services
 
     def add_service(self, service):
         """Adds a vehicle process to provide services to it"""
