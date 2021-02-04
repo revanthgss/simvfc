@@ -64,26 +64,17 @@ class Simulation:
             self.allocation_policy = CapacityAwareAllocationPolicy(
                 self.fog_nodes)
 
-    # TODO: While migrating services, follow below steps
-    '''
-    - remove the service from previous fog node
-    - Add the service to the new fog node
-    - Update the service node mapping to new fog node
-    '''
-
     def _monitor_services(self, env):
         self.total_services = 0
         while self.total_services < self.config["total_service_connections"]:
             service_arrivals = self.mean_arrival_rate
             service_departures = self.mean_departure_rate
             for _ in range(service_arrivals):
-                # possible_vehicles = list(filter(
-                #     lambda v: v.allotted_fog_node is None, self.mobility_model.vehicles.values()))
-                # if len(possible_vehicles) != 0:
-                vehicles = list(self.mobility_model.vehicles.values())
-                if len(vehicles) != 0:
+                possible_vehicles = list(filter(
+                    lambda v: v.allotted_fog_node is None, self.mobility_model.vehicles.values()))
+                if len(possible_vehicles) != 0:
                     service = Service(
-                        random.choice(vehicles),
+                        random.choice(possible_vehicles),
                         self.total_services,
                         random.uniform(*self.config["desired_data_rate"])
                     )
