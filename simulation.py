@@ -15,7 +15,7 @@ import random
 class Simulation:
 
     def __init__(self, config='./config.json'):
-        self.env = RealtimeEnvironment(strict=False)
+        self.env = Environment()
         self.stop_simulation_event = Event(self.env)
         # Initialise config
         with open(config) as f:
@@ -67,8 +67,8 @@ class Simulation:
     def _monitor_services(self, env):
         self.total_services = 0
         while self.total_services < self.config["total_service_connections"]:
-            service_arrivals = self.mean_arrival_rate
-            service_departures = self.mean_departure_rate
+            service_arrivals = random.randint(0, 2*self.mean_arrival_rate)
+            service_departures = random.randint(0, 2*self.mean_departure_rate)
             for _ in range(service_arrivals):
                 possible_vehicles = list(filter(
                     lambda v: v.allotted_fog_node is None, self.mobility_model.vehicles.values()))
@@ -86,18 +86,23 @@ class Simulation:
                 if len(self._service_node_mapping.keys()) != 0:
                     service_id = random.choice(
                         list(self._service_node_mapping.keys()))
-                    self._service_node_mapping[service_id].remove_service(
-                        service_id)
+                    fn = self._service_node_mapping[service_id]
+                    fn.remove_service(fn.get_service(service_id))
                     _ = self._service_node_mapping.pop(service_id)
         print(
             f'Stopping simulation as {self.total_services} services are served')
         self.stop_simulation_event.succeed()
 
+    def set_service_node_mapping(self, service, fog_node):
+        self._service_node_mapping[service.id] = fog_node
+
     def _orchestrate_services(self, env):
         """Orchestrate services periodically"""
+        yield env.timeout(1)
         if self.config["orchestration_scheme"] == 'dro':
             self.orchestration_module = DynamicResourceOrchestrationModule(
-                self.fog_nodes, self.mobility_model.vehicles)
+                self,
+                self.fog_nodes, self.mobility_model.vehicles.values())
 
         while True:
             self.orchestration_module.step()

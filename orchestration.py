@@ -1,5 +1,6 @@
 from utils import find_vehicles
 import numpy as np
+from vehicle import Service
 from optimization_solver import OptimizationSolver
 
 
@@ -11,8 +12,9 @@ class OrchestrationModule:
 
 class DynamicResourceOrchestrationModule(OrchestrationModule):
 
-    def __init__(self, fog_nodes, vehicles, eps=0.1, gamma=0.01):
+    def __init__(self, simulation_instance, fog_nodes, vehicles, eps=100, gamma=1000):
         self.fog_nodes = fog_nodes
+        self.simulation_instance = simulation_instance
         self.vehicles = vehicles
         self.EPS = eps
         self.GAMMA = gamma
@@ -26,32 +28,38 @@ class DynamicResourceOrchestrationModule(OrchestrationModule):
         # Feasible connected vehicles for service migrations from i to j
         # key -> (i,j), value: [list of vehicles]
 
-        di = set(filter(
-            lambda x: x['service'].vehicle.id, self.fog_nodes[i].get_vehicle_services()))
-        dj = set(filter(
-            lambda x: x['service'].vehicle.id, self.fog_nodes[j].get_vehicle_services()))
+        di = set(self.fog_nodes[i].get_vehicle_services().keys())
+        dj = set(self.fog_nodes[j].get_vehicle_services().keys())
         self.D[i] = di
         self.D[j] = dj
         di_cov = {v.id for v in find_vehicles(
-            self.vehicles, fog_nodes[i])}
+            self.vehicles, self.fog_nodes[i])}
         dj_cov = {v.id for v in find_vehicles(
-            self.vehicles, fog_nodes[j])}
+            self.vehicles, self.fog_nodes[j])}
         dij_cov = di_cov.intersection(dj_cov)
 
         return (di.union(dj)).intersection(dij_cov)
 
     def is_associated(self, i, j):
         """Returns if jth vehicle is associated with ith fog node"""
-        vehicle = [v.id for v in self.vehicles if v.id == j][0]
-        return vehicle.alloted_fog_node is not None and vehicle.allotted_fog_node.id == i
+        vehicle = [v for v in self.vehicles if v.id == j][0]
+        return vehicle.allotted_fog_node is not None and vehicle.allotted_fog_node.id == i
 
     def compute_resource_blocks(self):
         # b[(i,j)] denotes number of resource blocks assigned by fog node i to vehicle j
         self.b = {}
+        self.vehicle_services = {}
         for fn in self.fog_nodes:
-            for vs in find_vehicles(self.vehicles, fn):
-                self.b[(fn.id, vs['service'].vehicle.id)
-                       ] = fn.get_resource_blocks(vs['service'])
+            self.vehicle_services.update(fn.get_vehicle_services())
+        serving_vehicles = []
+        for vehicle in self.vehicles:
+            if vehicle.id in self.vehicle_services.keys():
+                serving_vehicles.append(vehicle)
+
+        for fn in self.fog_nodes:
+            for vehicle in find_vehicles(serving_vehicles, fn):
+                self.b[(fn.id, vehicle.id)
+                       ] = fn.get_resource_blocks(self.vehicle_services[vehicle.id]['service'])
 
     def solve_knapsack(self, u, i, j, feasible_connected_vehicles):
         n = len(u)
@@ -66,35 +74,36 @@ class DynamicResourceOrchestrationModule(OrchestrationModule):
         weights = [self.b[(j, k)] for k in feasible_connected_vehicles]
         capacity = self.fog_nodes[j].capacity
         values = []
-        for k in range(n):
-            v = feasible_connected_vehicles[k]
+        k = 0
+        for v in feasible_connected_vehicles:
             if k in n_kp1:
                 values.append(self.b[(j, v)] - self.b[(j, v)])
             else:
                 values.append(u[k] - self.b[(j, v)])
+            k += 1
         n_kp2 = solver.solve(weights, values, capacity)
         n_kp1 = n_kp1.difference(n_kp2)
-        x = {}
+        x = set()
         for k in n_kp1:
-            x.insert((i, k))
+            x.add((i, k))
         for k in n_kp2:
-            x.insert((j, k))
+            x.add((j, k))
         return x
 
-    def get_x(self, i, n):
-        return 1 if (i, n) in self.x else 0
+    def get_x(self, x, i, n):
+        return 1 if (i, n) in x else 0
 
     def get_D_star(self, i, new_x, feasible_connected_vehicles):
         """Returns all the vehicle id's associated with fog node i with new allocation vector new_x"""
-        di_star = {}
+        di_star = set()
         for k, vid in enumerate(feasible_connected_vehicles):
             if (i, k) in new_x:
-                di_star.insert(vid)
+                di_star.add(vid)
         return di_star
 
-    def get_gradient(self, i, j, feasible_connected_vehicles):
+    def get_gradient(self, x, i, j, feasible_connected_vehicles):
         """Returns the gradients having length of feasible connected vehicles"""
-        return [1+get_x(i, k)+get_x(j, k) for k in feasible_connected_vehicles]
+        return [1+self.get_x(x, i, k)+self.get_x(x, j, k) for k in feasible_connected_vehicles]
 
     def get_weight(self, i, j, feasible_connected_vehicles):
         """Returns the amount of optimal resource migration of the edge between fog node i and fog node j"""
@@ -112,12 +121,16 @@ class DynamicResourceOrchestrationModule(OrchestrationModule):
         u = [0]*len(feasible_connected_vehicles)
         du = self.get_gradient(
             self.x, i, j, feasible_connected_vehicles)
+        new_x = None
         while not np.linalg.norm(du) <= self.EPS:
             new_x = self.solve_knapsack(
                 u, i, j, feasible_connected_vehicles)
-            u = u + self.GAMMA * \
-                self.get_gradient(
-                    new_x, i, j, feasible_connected_vehicles)
+            du = self.get_gradient(
+                new_x, i, j, feasible_connected_vehicles)
+            for k in range(len(u)):
+                u[k] = u[k] + self.GAMMA * du[k]
+        if new_x is None:
+            new_x = self.x
         new_u = u
         self.D_star[i] = self.get_D_star(
             i, new_x, feasible_connected_vehicles)
@@ -130,10 +143,10 @@ class DynamicResourceOrchestrationModule(OrchestrationModule):
 
     def get_optimal_pairs(self):
         """Performs maximum weight matching on fog node graph to get the optimal pairs of fog nodes for service migration"""
-        phi = {}
+        phi = set()
         while self.W:
             edge = max(self.W, key=self.W.get)
-            self.phi.insert(edge)
+            phi.add(edge)
             new_W = {}
             for key in self.W.keys():
                 if not(edge[0] in key or edge[1] in key):
@@ -143,22 +156,25 @@ class DynamicResourceOrchestrationModule(OrchestrationModule):
 
     def migrate(self, i, j, vehicle_id):
         """Migrates all the service that are required from fog node i to fog node j"""
-        services = self.fog_nodes[i].get_vehicle_services().values()
+        services = [item['service']
+                    for item in self.fog_nodes[i].get_vehicle_services().values()]
         for service in services:
             if service.vehicle.id == vehicle_id:
                 print(
-                    f'Migrating service of vehicle {vehicle_id} from fog node {i} to fog_node {j}')
-                self.fog_node[i].remove_service(service.id)
-                self.fog_node[j].add_service(service)
+                    f'Migrating service of vehicle {vehicle_id} from fog node {i} to fog node {j}')
+                self.fog_nodes[i].remove_service(service)
+                self.fog_nodes[j].add_service(service)
+                self.simulation_instance.set_service_node_mapping(
+                    service, self.fog_nodes[j])
 
     def step(self):
         self.compute_resource_blocks()
         # X_ij denotes whether ith fog node is connected jth vehicle
-        self.x = {}
+        self.x = set()
         for fn in self.fog_nodes:
             for v in self.vehicles:
                 if self.is_associated(fn.id, v.id):
-                    self.x.insert((fn.id, v.id))
+                    self.x.add((fn.id, v.id))
 
         for i in range(len(self.fog_nodes)):
             for j in range(i+1, len(self.fog_nodes)):

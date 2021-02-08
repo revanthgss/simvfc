@@ -41,7 +41,7 @@ class Node:
         signal = 1000*self._get_channel_gain(vehicle)
         noise = self.sigma**2
         interference = 0
-        for service_id, obj in self._vehicle_services.items():
+        for vehicle_id, obj in self._vehicle_services.items():
             if vehicle.id != obj["service"].vehicle.id:
                 interference += 500 * \
                     self._get_channel_gain(obj["service"].vehicle)
@@ -55,12 +55,12 @@ class Node:
     def _serve_vehicle(self, env, service):
         """Allots some resources to vehicles"""
         required_resource_blocks = self.get_resource_blocks(service)
-        self._vehicle_services[service.id]['resource_blocks'] = required_resource_blocks
+        self._vehicle_services[service.vehicle.id]['resource_blocks'] = required_resource_blocks
         # print(required_resource_blocks)
         # Allot resources to that vehicle
         try:
             yield self.resource_container.get(required_resource_blocks)
-            while service.id in list(self._vehicle_services.keys()):
+            while service.vehicle.id in list(self._vehicle_services.keys()):
                 # print(f'FogNode {self.id} -- {self.resource_container.level}')
                 yield env.timeout(1)
         except Interrupt as i:
@@ -73,18 +73,24 @@ class Node:
     def get_vehicle_services(self):
         return self._vehicle_services
 
+    def get_service(self, service_id):
+        for vehicle_service in self.get_vehicle_services().values():
+            service = vehicle_service['service']
+            if service.id == service_id:
+                return service
+
     def add_service(self, service):
         """Adds a vehicle process to provide services to it"""
         print(
             f"Service {service.id} is assigned to fog node {self.id}")
         self.in_service = True
-        self._vehicle_services[service.id] = {
+        self._vehicle_services[service.vehicle.id] = {
             "service": service,
             "process": self.env.process(
                 self._serve_vehicle(self.env, service))
         }
 
-    def remove_service(self, service_id):
-        self._vehicle_services[service_id]["process"].interrupt(
+    def remove_service(self, service):
+        self._vehicle_services[service.vehicle.id]["process"].interrupt(
             'Stopped service')
-        _ = self._vehicle_services.pop(service_id)
+        _ = self._vehicle_services.pop(service.vehicle.id)
