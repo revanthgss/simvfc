@@ -16,7 +16,8 @@ class AllocationPolicy:
     def allocate(self, service):
         """Takes a service and implements the allocation algorithm for choosing fog nodes"""
         vehicle = service.vehicle
-        self.feasible_fog_nodes = find_feasible_fog_nodes(self.fog_nodes, vehicle)
+        self.feasible_fog_nodes = find_feasible_fog_nodes(
+            self.fog_nodes, vehicle)
         best_fog_node = self.find_best_fog_node(vehicle)
         best_fog_node.add_service(service)
         vehicle.allotted_fog_node = best_fog_node
@@ -40,6 +41,7 @@ class CapacityAwareAllocationPolicy(AllocationPolicy):
     def find_best_fog_node(self, vehicle):
         available_resources = [
             fog_node.resource_container.level for fog_node in self.feasible_fog_nodes]
+
         best_fog_node = self.feasible_fog_nodes[available_resources.index(
             max(available_resources))]
         return best_fog_node

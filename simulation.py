@@ -8,6 +8,7 @@ from topology import Topology
 from mobility_model import DynamicMobilityModel
 from policy import SignalAwareAllocationPolicy, CapacityAwareAllocationPolicy
 from orchestration import DynamicResourceOrchestrationModule
+from metrics import MetricFactory
 import json
 import random
 
@@ -34,6 +35,10 @@ class Simulation:
         self._init_policy()
         if self.config.get('orchestration_scheme', None):
             self.env.process(self._orchestrate_services(self.env))
+        if self.config['metrics']:
+            self.metrics = [MetricFactory(metric)
+                            for metric in self.config['metrics']]
+            self.env.process(self._compute_metrics(self.env))
 
     def _init_fog_nodes(self):
         self.fog_nodes = [
@@ -44,12 +49,14 @@ class Simulation:
                 random.choice(self.config["fn_bandwidth"]),
             ) for idx in range(self.config["num_fn"])
         ]
+        for fn in self.fog_nodes:
+            fn.set_metrics(self.metrics)
         area = self.config["network_area"]
         Topology(self.config["topology_origin"], area[0],
                  area[1]).assign_positions(self.fog_nodes)
 
     def _update_vehicles(self, env):
-        frame_id = 150
+        frame_id = 300
         while True:
             self.mobility_model.update_vehicles(env, frame_id)
             yield env.timeout(1)
@@ -64,11 +71,20 @@ class Simulation:
             self.allocation_policy = CapacityAwareAllocationPolicy(
                 self.fog_nodes)
 
+    def _compute_metrics(self, env):
+        while True:
+            yield env.timeout(1)
+            for metric in self.metrics:
+                metric.compute(self.fog_nodes)
+
+    def get_metrics(self):
+        return {metric.name: metric.get_values() for metric in self.metrics}
+
     def _monitor_services(self, env):
         self.total_services = 0
         while self.total_services < self.config["total_service_connections"]:
-            service_arrivals = random.randint(0, 2*self.mean_arrival_rate)
-            service_departures = random.randint(0, 2*self.mean_departure_rate)
+            service_arrivals = self.mean_arrival_rate
+            service_departures = self.mean_departure_rate
             for _ in range(service_arrivals):
                 possible_vehicles = list(filter(
                     lambda v: v.allotted_fog_node is None, self.mobility_model.vehicles.values()))
@@ -91,18 +107,19 @@ class Simulation:
                     _ = self._service_node_mapping.pop(service_id)
         print(
             f'Stopping simulation as {self.total_services} services are served')
+        print(self.get_metrics())
         self.stop_simulation_event.succeed()
 
     def set_service_node_mapping(self, service, fog_node):
         self._service_node_mapping[service.id] = fog_node
 
+    # TODO: If possible, run this service in a new thread
     def _orchestrate_services(self, env):
         """Orchestrate services periodically"""
         yield env.timeout(1)
         if self.config["orchestration_scheme"] == 'dro':
             self.orchestration_module = DynamicResourceOrchestrationModule(
-                self,
-                self.fog_nodes, self.mobility_model.vehicles.values())
+                self)
 
         while True:
             self.orchestration_module.step()

@@ -25,10 +25,18 @@ class Node:
             env, capacity=self.capacity, init=self.capacity)
         self._vehicle_services = {}
         self.in_service = False
+        self.overall_throughput = 0
+        self.env.process(self._compute_metrics(self.env))
 
     def set_position(self, x, y):
         """Sets the position of a fog node"""
         self.position = (x, y)
+
+    def _compute_metrics(self, env):
+        while True:
+            self.incoming_services = 0
+            self.services_served = 0
+            yield env.timeout(1)
 
     def _get_channel_gain(self, vehicle):
         return 1/distance(self.position, vehicle.get_position())**3.7
@@ -48,9 +56,13 @@ class Node:
         # print(f'sinr={10*math.log10(signal/(noise+interference))}')
         return signal/(noise + interference)
 
+    def get_throughput(self, service):
+        # TODO: Check whether to include 1000 or not
+        return 180*math.log2(1+self._get_sinr(service.vehicle))/1000
+
     def get_resource_blocks(self, service):
-        return int(service.desired_data_rate*1000 /
-                   (180*math.log2(1+self._get_sinr(service.vehicle))))
+        return int(service.desired_data_rate /
+                   self.get_throughput(service))
 
     def _serve_vehicle(self, env, service):
         """Allots some resources to vehicles"""
@@ -60,6 +72,7 @@ class Node:
         # Allot resources to that vehicle
         try:
             yield self.resource_container.get(required_resource_blocks)
+            self.services_served += 1
             while service.vehicle.id in list(self._vehicle_services.keys()):
                 # print(f'FogNode {self.id} -- {self.resource_container.level}')
                 yield env.timeout(1)
@@ -68,6 +81,7 @@ class Node:
             #     f'Service {service.id} of vehicle {service.vehicle.id} at fog node {self.id} got interrupted.')
             pass
         # Free resources from that vehicle
+        self.overall_throughput += self.get_throughput(service)
         yield self.resource_container.put(required_resource_blocks)
 
     def get_vehicle_services(self):
@@ -81,6 +95,7 @@ class Node:
 
     def add_service(self, service):
         """Adds a vehicle process to provide services to it"""
+        self.incoming_services += 1
         print(
             f"Service {service.id} is assigned to fog node {self.id}")
         self.in_service = True
