@@ -1,4 +1,5 @@
 import random
+from constants import TIME_MULTIPLIER
 
 
 class Service:
@@ -30,4 +31,4 @@ class Vehicle:
         for position in self.mobility_model.positions(self):
             self._position = position
             # print(f'Vehicle {self.id} is at {self._position}')
-            yield env.timeout(1)
+            yield env.timeout(0.1*TIME_MULTIPLIER)

@@ -116,11 +116,20 @@ class DynamicResourceOrchestrationModule(OrchestrationModule):
         du = self.get_gradient(
             self.x, i, j, feasible_connected_vehicles)
         new_x = None
+        patience = 5
         while not np.linalg.norm(du) <= self.EPS:
             new_x = self.solve_knapsack(
                 u, i, j, feasible_connected_vehicles)
+            old_du = du
             du = self.get_gradient(
                 new_x, i, j, feasible_connected_vehicles)
+            # If there is no improvement for some step in loop, break the loop to prevent infinite loop
+            if np.linalg.norm(du) == np.linalg.norm(old_du):
+                patience -= 1
+            else:
+                patience = 5
+            if patience == 0:
+                break
             for k in range(len(u)):
                 u[k] = u[k] + self.GAMMA * du[k]
         if new_x is None:

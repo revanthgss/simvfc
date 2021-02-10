@@ -1,0 +1,14 @@
+{
+    "num_fn" : 49,
+    "topology_origin" : [6451065,1871883],
+    "network_area": [1675,1515],
+    "fn_coverage_radius" : [100,500],
+    "fn_bandwidth" : [10,15,20],
+    "mean_arrival_rate" : 20,
+    "mean_departure_rate" : 10,
+    "desired_data_rate" : [0.5,2],
+    "total_service_connections" : 100,
+    "allocation_policy" : "context_aware",
+    "orchestration_scheme" : "dro",
+    "metrics" : ["service_capability", "throughput","serviceability", "availability"]
+}

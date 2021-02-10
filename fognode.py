@@ -3,15 +3,16 @@ from simpy import Interrupt
 import math
 from utils import distance
 import numpy as np
+from constants import TIME_MULTIPLIER
 
 
 class Node:
     '''A node class that is used to create static nodes in a cloud network'''
 
     BADNWIDTH_CAPACITY_MAPPING = {
-        '10': 50*1000,
-        '15': 75*1000,
-        '20': 100*1000
+        '10': 50*100,
+        '15': 75*100,
+        '20': 100*100
     }
 
     def __init__(self, idx, env, coverage_radius, bandwidth):
@@ -26,62 +27,62 @@ class Node:
         self._vehicle_services = {}
         self.in_service = False
         self.overall_throughput = 0
-        self.env.process(self._compute_metrics(self.env))
+        self.incoming_services = 0
+        self.services_served = 0
 
     def set_position(self, x, y):
         """Sets the position of a fog node"""
         self.position = (x, y)
 
-    def _compute_metrics(self, env):
-        while True:
-            self.incoming_services = 0
-            self.services_served = 0
-            yield env.timeout(1)
+    def get_serviceability_metrics(self):
+        return (self.services_served, self.incoming_services)
 
     def _get_channel_gain(self, vehicle):
-        return 1/distance(self.position, vehicle.get_position())**3.7
+        return 1/distance(self.position, vehicle.get_position())**3.5
 
     def _get_sinr(self, vehicle):
         """
-        Returns the signal to interference plus noise ratio 
+        Returns the signal to interference plus noise ratio
         between the given vehicle and fog node
         """
+        # TODO: figure out whether transmit power is 1 kW
         signal = 1000*self._get_channel_gain(vehicle)
         noise = self.sigma**2
         interference = 0
         for vehicle_id, obj in self._vehicle_services.items():
             if vehicle.id != obj["service"].vehicle.id:
-                interference += 500 * \
+                interference += 500 *\
                     self._get_channel_gain(obj["service"].vehicle)
         # print(f'sinr={10*math.log10(signal/(noise+interference))}')
         return signal/(noise + interference)
 
     def get_throughput(self, service):
-        # TODO: Check whether to include 1000 or not
-        return 180*math.log2(1+self._get_sinr(service.vehicle))/1000
+        return self.bandwidth*math.log2(1+self._get_sinr(service.vehicle))
 
     def get_resource_blocks(self, service):
-        return int(service.desired_data_rate /
-                   self.get_throughput(service))
+        return int(service.desired_data_rate * 1000 /
+                   (180*math.log2(1+self._get_sinr(
+                       service.vehicle))))
 
     def _serve_vehicle(self, env, service):
         """Allots some resources to vehicles"""
         required_resource_blocks = self.get_resource_blocks(service)
         self._vehicle_services[service.vehicle.id]['resource_blocks'] = required_resource_blocks
-        # print(required_resource_blocks)
         # Allot resources to that vehicle
+        start = env.now
         try:
+            if required_resource_blocks < self.resource_container.level:
+                self.services_served += 1
             yield self.resource_container.get(required_resource_blocks)
-            self.services_served += 1
             while service.vehicle.id in list(self._vehicle_services.keys()):
-                # print(f'FogNode {self.id} -- {self.resource_container.level}')
-                yield env.timeout(1)
+                yield env.timeout(TIME_MULTIPLIER)
         except Interrupt as i:
             # print(
             #     f'Service {service.id} of vehicle {service.vehicle.id} at fog node {self.id} got interrupted.')
             pass
         # Free resources from that vehicle
-        self.overall_throughput += self.get_throughput(service)
+        self.overall_throughput += (env.now - start)/TIME_MULTIPLIER * \
+            self.get_throughput(service)
         yield self.resource_container.put(required_resource_blocks)
 
     def get_vehicle_services(self):
@@ -96,8 +97,8 @@ class Node:
     def add_service(self, service):
         """Adds a vehicle process to provide services to it"""
         self.incoming_services += 1
-        print(
-            f"Service {service.id} is assigned to fog node {self.id}")
+        # print(
+        #     f"Service {service.id} is assigned to fog node {self.id}")
         self.in_service = True
         self._vehicle_services[service.vehicle.id] = {
             "service": service,
@@ -106,6 +107,7 @@ class Node:
         }
 
     def remove_service(self, service):
+        # print(f"Service {service.id} is removed")
         self._vehicle_services[service.vehicle.id]["process"].interrupt(
             'Stopped service')
         _ = self._vehicle_services.pop(service.vehicle.id)
