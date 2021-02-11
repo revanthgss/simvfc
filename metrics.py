@@ -52,7 +52,6 @@ class Serviceability(Metric):
         else:
             self._values.append(tss /
                                 tis)
-            print(tss/tis)
 
 
 class Availability(Metric):

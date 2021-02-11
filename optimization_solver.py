@@ -12,7 +12,7 @@ class OptimizationSolver:
             for w in range(1, capacity+1):
                 if weights[i-1] <= w and values[i-1] > 0:
                     dp[i][w] = max(dp[i-1][w], values[i-1] +
-                                   dp[i-1][w-values[i-1]])
+                                   dp[i-1][w-weights[i-1]])
                 else:
                     dp[i][w] = dp[i-1][w]
         selected_items = set()

@@ -72,7 +72,6 @@ class Simulation:
 
     def _compute_metrics(self, env):
         while True:
-            print(env.now/TIME_MULTIPLIER, end='-->')
             for metric in self.metrics:
                 metric.compute(self.fog_nodes)
             yield env.timeout(TIME_MULTIPLIER)
@@ -83,6 +82,7 @@ class Simulation:
     def _monitor_services(self, env):
         self.total_services = 0
         while self.total_services < self.config["total_service_connections"]:
+            # print(self.total_services, len(self.mobility_model.vehicles.keys()))
             service_arrivals = self.mean_arrival_rate
             service_departures = self.mean_departure_rate
             for _ in range(service_arrivals):
@@ -107,8 +107,8 @@ class Simulation:
                     _ = self._service_node_mapping.pop(service_id)
         print(
             f'Stopping simulation as {self.total_services} services are served')
-        if hasattr(self, 'metrics'):
-            print(self.get_metrics())
+        # if hasattr(self, 'metrics'):
+        #     print(self.get_metrics())
         self.stop_simulation_event.succeed()
 
     def set_service_node_mapping(self, service, fog_node):

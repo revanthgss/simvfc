@@ -1,6 +1,6 @@
 from simulation import Simulation
 
-configs = ['sa', 'caa', 'sa_dro', 'caa_dro']
+configs = ['sa_dro']
 
 instances = {}
 for config in configs:
@@ -11,5 +11,3 @@ for config in configs:
     print(f'Running simulation with config {config}')
     instances[config].run()
     results[config] = instances[config].get_metrics()
-
-print(results)
