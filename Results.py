@@ -9,7 +9,7 @@ from simulation import Simulation
 import random
 
 
-configs = ['sa']
+configs = ['sa', 'caa', 'sa_dro', 'caa_dro']
 
 instances = {}
 results = {}

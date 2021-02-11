@@ -196,8 +196,6 @@ class DynamicResourceOrchestrationModule(OrchestrationModule):
 
         for i, j in phi:
             for vehicle_id in self.d_star[(i, j)]:
-                self.simulation_instance.env.process(
-                    self.migrate(i, j, vehicle_id))
+                self.migrate(i, j, vehicle_id)
             for vehicle_id in self.d_star[(j, i)]:
-                self.simulation_instance.env.process(
-                    self.migrate(j, i, vehicle_id))
+                self.migrate(j, i, vehicle_id)
