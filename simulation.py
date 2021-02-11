@@ -97,6 +97,8 @@ class Simulation:
                     allotted_node = self.allocation_policy.allocate(service)
                     self._service_node_mapping[service.id] = allotted_node
                     self.total_services += 1
+                    if self.total_services >= self.config["total_service_connections"]:
+                        break
             yield env.timeout(TIME_MULTIPLIER)
             for _ in range(service_departures):
                 if len(self._service_node_mapping.keys()) != 0:
@@ -124,7 +126,7 @@ class Simulation:
 
         while True:
             self.orchestration_module.step()
-            yield env.timeout(2*TIME_MULTIPLIER)
+            yield env.timeout(TIME_MULTIPLIER)
 
     def run(self):
         self.env.run(until=self.stop_simulation_event)

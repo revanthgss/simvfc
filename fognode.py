@@ -64,15 +64,20 @@ class Node:
                    (180*math.log2(1+self._get_sinr(
                        service.vehicle))))
 
-    def _serve_vehicle(self, env, service):
+    def _serve_vehicle(self, env, service, migrated=False):
         """Allots some resources to vehicles"""
         required_resource_blocks = self.get_resource_blocks(service)
         self._vehicle_services[service.vehicle.id]['resource_blocks'] = required_resource_blocks
         # Allot resources to that vehicle
         start = env.now
         try:
-            if required_resource_blocks < self.resource_container.level:
-                self.services_served += 1
+            if required_resource_blocks <= self.resource_container.level:
+                if not migrated:
+                    self.services_served += 1
+            else:
+                _ = self._vehicle_services.pop(service.vehicle.id)
+                service.vehicle.allotted_fog_node = None
+                return
             yield self.resource_container.get(required_resource_blocks)
             while service.vehicle.id in list(self._vehicle_services.keys()):
                 yield env.timeout(TIME_MULTIPLIER)
@@ -94,20 +99,24 @@ class Node:
             if service.id == service_id:
                 return service
 
-    def add_service(self, service):
+    def add_service(self, service, migrated=False):
         """Adds a vehicle process to provide services to it"""
-        self.incoming_services += 1
+        if not migrated:
+            self.incoming_services += 1
+        service.vehicle.allotted_fog_node = self
         # print(
         #     f"Service {service.id} is assigned to fog node {self.id}")
         self.in_service = True
         self._vehicle_services[service.vehicle.id] = {
             "service": service,
             "process": self.env.process(
-                self._serve_vehicle(self.env, service))
+                self._serve_vehicle(self.env, service, migrated))
         }
 
     def remove_service(self, service):
         # print(f"Service {service.id} is removed")
-        self._vehicle_services[service.vehicle.id]["process"].interrupt(
-            'Stopped service')
-        _ = self._vehicle_services.pop(service.vehicle.id)
+        if service is not None:
+            service.vehicle.allotted_fog_node = None
+            self._vehicle_services[service.vehicle.id]["process"].interrupt(
+                'Stopped service')
+            _ = self._vehicle_services.pop(service.vehicle.id)

@@ -66,8 +66,8 @@ class Availability(Metric):
         tss = 0
         for node in nodes:
             x, y = node.get_serviceability_metrics()
-            tis += x
-            tss += y
+            tss += x
+            tis += y
 
         if tis == 0:
             self._values.append(1)

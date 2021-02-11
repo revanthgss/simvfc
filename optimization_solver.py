@@ -19,6 +19,8 @@ class OptimizationSolver:
         weight_in_knapsack = capacity
         total_value = dp[n][capacity]
         for i in range(n, 0, -1):
+            if total_value < 0:
+                break
             # If total value is more than the value of the items knapsack
             # include the ith item in selected items
             if total_value != dp[i-1][weight_in_knapsack]:

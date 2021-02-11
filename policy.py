@@ -20,7 +20,6 @@ class AllocationPolicy:
             self.fog_nodes, vehicle)
         best_fog_node = self.find_best_fog_node(vehicle)
         best_fog_node.add_service(service)
-        vehicle.allotted_fog_node = best_fog_node
         return best_fog_node
 
 

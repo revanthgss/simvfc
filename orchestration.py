@@ -12,7 +12,7 @@ class OrchestrationModule:
 
 class DynamicResourceOrchestrationModule(OrchestrationModule):
 
-    def __init__(self, simulation_instance, eps=5, gamma=100):
+    def __init__(self, simulation_instance, eps=4, gamma=10):
         self.simulation_instance = simulation_instance
         self.EPS = eps
         self.GAMMA = gamma
@@ -35,8 +35,7 @@ class DynamicResourceOrchestrationModule(OrchestrationModule):
 
     def is_associated(self, i, j):
         """Returns if jth vehicle is associated with ith fog node"""
-        vehicle = [v for v in self.vehicles if v.id == j][0]
-        return vehicle.allotted_fog_node is not None and vehicle.allotted_fog_node.id == i
+        return j in self.fog_nodes[i].get_vehicle_services().keys()
 
     def compute_resource_blocks(self):
         # b[(i,j)] denotes number of resource blocks assigned by fog node i to vehicle j
@@ -60,18 +59,22 @@ class DynamicResourceOrchestrationModule(OrchestrationModule):
         vehicle_list = list(feasible_connected_vehicles)
         # Solving KP1
         weights = [self.b[(i, k)] for k in vehicle_list]
-        capacity = self.fog_nodes[i].capacity
+        di_fea = self.D[i].intersection(feasible_connected_vehicles)
+        capacity = self.fog_nodes[i].resource_container.level + \
+            sum([self.b[(i, k)] for k in di_fea])
         values = [u[idx]-self.b[(i, k)]
                   for idx, k in enumerate(vehicle_list)]
         n_kp1 = {vehicle_list[idx]
                  for idx in solver.solve(weights, values, capacity)}
         # Solving KP2
         weights = [self.b[(j, k)] for k in vehicle_list]
-        capacity = self.fog_nodes[j].capacity
+        dj_fea = self.D[j].intersection(feasible_connected_vehicles)
+        capacity = self.fog_nodes[j].resource_container.level + \
+            sum([self.b[(j, k)] for k in dj_fea])
         values = []
-        for idx, vid in enumerate(feasible_connected_vehicles):
+        for idx, vid in enumerate(vehicle_list):
             if vid in n_kp1:
-                values.append(self.b[(j, vid)] - self.b[(j, vid)])
+                values.append(self.b[(i, vid)] - self.b[(j, vid)])
             else:
                 values.append(u[idx] - self.b[(j, vid)])
         n_kp2 = {vehicle_list[idx]
@@ -109,38 +112,37 @@ class DynamicResourceOrchestrationModule(OrchestrationModule):
             sum([self.b[(j, k)] for k in dj_fea])
         oij_star = sum([self.b[(i, k)] for k in di_star_fea]) + \
             sum([self.b[(j, k)] for k in dj_star_fea])
-        return oij - oij_star
+        return (oij - oij_star)
 
     def compute_heuristic(self, i, j, feasible_connected_vehicles):
         u = [0]*len(feasible_connected_vehicles)
         du = self.get_gradient(
             self.x, i, j, feasible_connected_vehicles)
         new_x = None
-        patience = 5
+        # patience = 5
         while not np.linalg.norm(du) <= self.EPS:
             new_x = self.solve_knapsack(
                 u, i, j, feasible_connected_vehicles)
             old_du = du
             du = self.get_gradient(
                 new_x, i, j, feasible_connected_vehicles)
-            # If there is no improvement for some step in loop, break the loop to prevent infinite loop
-            if np.linalg.norm(du) == np.linalg.norm(old_du):
-                patience -= 1
-            else:
-                patience = 5
-            if patience == 0:
-                break
+            # print(np.linalg.norm(du))
+            # If there is no improvement for some steps in loop, break the loop to prevent infinite loop
+            # if np.linalg.norm(du) == np.linalg.norm(old_du):
+            #     patience -= 1
+            # else:
+            #     patience = 5
+            # if patience == 0:
+            #     break
             for k in range(len(u)):
                 u[k] = u[k] + self.GAMMA * du[k]
-        if new_x is None:
-            new_x = self.x
-        new_u = u
-        self.D_star[i] = self.get_D_star(i, new_x)
-        self.D_star[j] = self.get_D_star(j, new_x)
-        self.d_star[(i, j)] = self.D[i].difference(self.D_star[i])
-        self.d_star[(j, i)] = self.D[j].difference(self.D_star[j])
-        self.W[(i, j)] = self.get_weight(
-            i, j, feasible_connected_vehicles)
+        if new_x is not None:
+            self.D_star[i] = self.get_D_star(i, new_x)
+            self.D_star[j] = self.get_D_star(j, new_x)
+            self.d_star[(i, j)] = self.D[i].difference(self.D_star[i])
+            self.d_star[(j, i)] = self.D[j].difference(self.D_star[j])
+            self.W[(i, j)] = self.get_weight(
+                i, j, feasible_connected_vehicles)
 
     def get_optimal_pairs(self):
         """Performs maximum weight matching on fog node graph to get the optimal pairs of fog nodes for service migration"""
@@ -162,9 +164,9 @@ class DynamicResourceOrchestrationModule(OrchestrationModule):
         for service in services:
             if service.vehicle.id == vehicle_id:
                 print(
-                    f'Migrating service of vehicle {vehicle_id} from fog node {i} to fog node {j}')
+                    f'Migrating service {service.id} of vehicle {vehicle_id} from fog node {i} to fog node {j}')
                 self.fog_nodes[i].remove_service(service)
-                self.fog_nodes[j].add_service(service)
+                self.fog_nodes[j].add_service(service, migrated=True)
                 self.simulation_instance.set_service_node_mapping(
                     service, self.fog_nodes[j])
 
@@ -194,6 +196,8 @@ class DynamicResourceOrchestrationModule(OrchestrationModule):
 
         for i, j in phi:
             for vehicle_id in self.d_star[(i, j)]:
-                self.migrate(i, j, vehicle_id)
+                self.simulation_instance.env.process(
+                    self.migrate(i, j, vehicle_id))
             for vehicle_id in self.d_star[(j, i)]:
-                self.migrate(j, i, vehicle_id)
+                self.simulation_instance.env.process(
+                    self.migrate(j, i, vehicle_id))
