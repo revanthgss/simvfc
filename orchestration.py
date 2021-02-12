@@ -1,6 +1,7 @@
 from utils import find_vehicles
 import numpy as np
 from vehicle import Service
+import math
 from optimization_solver import OptimizationSolver
 
 
@@ -12,9 +13,8 @@ class OrchestrationModule:
 
 class DynamicResourceOrchestrationModule(OrchestrationModule):
 
-    def __init__(self, simulation_instance, eps=4, gamma=10):
+    def __init__(self, simulation_instance, gamma=1000):
         self.simulation_instance = simulation_instance
-        self.EPS = eps
         self.GAMMA = gamma
 
     def get_feasible_connected_vehicles(self, i, j):
@@ -85,6 +85,7 @@ class DynamicResourceOrchestrationModule(OrchestrationModule):
             x.add((i, k))
         for k in n_kp2:
             x.add((j, k))
+
         return x
 
     def get_x(self, x, i, n):
@@ -96,6 +97,7 @@ class DynamicResourceOrchestrationModule(OrchestrationModule):
         for fn_id, v_id in new_x:
             if fn_id == i:
                 di_star.add(v_id)
+
         return di_star
 
     def get_gradient(self, x, i, j, feasible_connected_vehicles):
@@ -108,6 +110,7 @@ class DynamicResourceOrchestrationModule(OrchestrationModule):
         dj_fea = self.D[j].intersection(feasible_connected_vehicles)
         di_star_fea = self.D_star[i].intersection(feasible_connected_vehicles)
         dj_star_fea = self.D_star[j].intersection(feasible_connected_vehicles)
+        # assert(di_fea.union(dj_fea) == di_star_fea.union(dj_star_fea))
         oij = sum([self.b[(i, k)] for k in di_fea]) + \
             sum([self.b[(j, k)] for k in dj_fea])
         oij_star = sum([self.b[(i, k)] for k in di_star_fea]) + \
@@ -116,31 +119,38 @@ class DynamicResourceOrchestrationModule(OrchestrationModule):
 
     def compute_heuristic(self, i, j, feasible_connected_vehicles):
         u = [0]*len(feasible_connected_vehicles)
-        du = self.get_gradient(
-            self.x, i, j, feasible_connected_vehicles)
         new_x = None
-        # patience = 5
-        while not np.linalg.norm(du) <= self.EPS:
+        patience = 100000/self.GAMMA
+        eps = 2*math.sqrt(len(feasible_connected_vehicles))
+        gamma = self.GAMMA
+        old_du = 0
+        while patience >= 0:
             new_x = self.solve_knapsack(
                 u, i, j, feasible_connected_vehicles)
-            old_du = du
             du = self.get_gradient(
                 new_x, i, j, feasible_connected_vehicles)
-            # print(np.linalg.norm(du))
-            # If there is no improvement for some steps in loop, break the loop to prevent infinite loop
-            # if np.linalg.norm(du) == np.linalg.norm(old_du):
-            #     patience -= 1
-            # else:
-            #     patience = 5
-            # if patience == 0:
-            #     break
             for k in range(len(u)):
-                u[k] = u[k] + self.GAMMA * du[k]
-        if new_x is not None:
+                u[k] = u[k] + gamma * du[k]
+            if old_du == du:
+                patience -= 1
+            else:
+                patience = 100000/gamma
+            if np.linalg.norm(du) >= eps:
+                break
+            old_du = du
+        if new_x is not None and len(new_x) != 0:
+            # for k in feasible_connected_vehicles:
+            #     if not (i, k) in new_x and not (j, k) in new_x:
+            #         if (i, k) in self.x:
+            #             new_x.add((i, k))
+            #         else:
+            #             new_x.add((j, k))
             self.D_star[i] = self.get_D_star(i, new_x)
             self.D_star[j] = self.get_D_star(j, new_x)
-            self.d_star[(i, j)] = self.D[i].difference(self.D_star[i])
-            self.d_star[(j, i)] = self.D[j].difference(self.D_star[j])
+            self.d_star[(i, j)] = (self.D[i].intersection(
+                feasible_connected_vehicles)).difference(self.D_star[i])
+            self.d_star[(j, i)] = (self.D[j].intersection(
+                feasible_connected_vehicles)).difference(self.D_star[j])
             self.W[(i, j)] = self.get_weight(
                 i, j, feasible_connected_vehicles)
 

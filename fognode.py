@@ -57,20 +57,30 @@ class Node:
         return signal/(noise + interference)
 
     def get_throughput(self, service):
-        return self.bandwidth*math.log2(1+self._get_sinr(service.vehicle))
+        return self.bandwidth*self._get_sinr(service.vehicle)
 
     def get_resource_blocks(self, service):
+        # TODO: return the resource blocks if sinr value is optimal
+        # otherwise return the capacity so that service is rejected
+        sinr = self._get_sinr(service.vehicle)
+        spectral_efficiency = math.log2(1+sinr)
+        if spectral_efficiency == 0:
+            return self.capacity
         return int(service.desired_data_rate * 1000 /
                    (180*math.log2(1+self._get_sinr(
-                       service.vehicle))))
+                    service.vehicle))))
 
     def _serve_vehicle(self, env, service, migrated=False):
         """Allots some resources to vehicles"""
-        required_resource_blocks = self.get_resource_blocks(service)
+        # Minimum resource blocks is 1
+        required_resource_blocks = max(1, self.get_resource_blocks(service))
         self._vehicle_services[service.vehicle.id]['resource_blocks'] = required_resource_blocks
         # Allot resources to that vehicle
         start = env.now
         try:
+            # if migrated:
+            #     assert(required_resource_blocks <=
+            #            self.resource_container.level)
             if required_resource_blocks <= self.resource_container.level:
                 if not migrated:
                     self.services_served += 1
@@ -86,8 +96,7 @@ class Node:
             #     f'Service {service.id} of vehicle {service.vehicle.id} at fog node {self.id} got interrupted.')
             pass
         # Free resources from that vehicle
-        self.overall_throughput += (env.now - start)/TIME_MULTIPLIER * \
-            self.get_throughput(service)
+        self.overall_throughput += self.get_throughput(service)
         yield self.resource_container.put(required_resource_blocks)
 
     def get_vehicle_services(self):
@@ -104,8 +113,8 @@ class Node:
         if not migrated:
             self.incoming_services += 1
         service.vehicle.allotted_fog_node = self
-        # print(
-        #     f"Service {service.id} is assigned to fog node {self.id}")
+        print(
+            f"Service {service.id} is assigned to fog node {self.id}")
         self.in_service = True
         self._vehicle_services[service.vehicle.id] = {
             "service": service,
