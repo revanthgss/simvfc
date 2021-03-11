@@ -76,13 +76,24 @@ class Availability(Metric):
                                 tis)
 
 
+class EnergyConsumed(Metric):
+
+    def __init__(self):
+        self.name = 'energy_consumed'
+        super().__init__()
+
+    def compute(self, nodes):
+        self._values.append(sum([node.energy_consumed for node in nodes]))
+
+
 def MetricFactory(metric_type):
 
     metrics = {
         "service_capability": ServiceCapability,
         "throughput": Throughput,
         "serviceability": Serviceability,
-        "availability": Availability
+        "availability": Availability,
+        "energy_consumed": EnergyConsumed
     }
 
     return metrics[metric_type]()

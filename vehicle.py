@@ -1,5 +1,5 @@
 import random
-from constants import TIME_MULTIPLIER
+from constants import TIME_MULTIPLIER, CACHE_CONTENT_TYPES
 
 
 class Service:
@@ -8,6 +8,7 @@ class Service:
         self.vehicle = vehicle
         self.id = service_id
         self.desired_data_rate = desired_data_rate
+        self.content_type = random.randint(1, CACHE_CONTENT_TYPES)
 
 
 class Vehicle:

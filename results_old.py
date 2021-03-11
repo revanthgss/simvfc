@@ -9,8 +9,8 @@ from simulation import Simulation
 import random
 
 
-configs = ['sa_dro']
-# TODO: Run 100 monte carlo simulations and plot the average results
+configs = ['sa_dro', 'caa_dro']
+
 instances = {}
 results = {}
 for config in configs:

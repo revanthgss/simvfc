@@ -11,7 +11,7 @@ from orchestration import DynamicResourceOrchestrationModule
 from metrics import MetricFactory
 import json
 import random
-from constants import TIME_MULTIPLIER
+from constants import TIME_MULTIPLIER, CACHE_CONTENT_TYPES
 
 
 class Simulation:
@@ -28,6 +28,7 @@ class Simulation:
         self.mean_departure_rate = self.config["mean_departure_rate"]
         self.env.process(self._monitor_services(self.env))
         self._service_node_mapping = {}
+        self.services = {}
         # Initialise fog nodes
         self._init_fog_nodes()
         # Initialise update vehicles process
@@ -48,6 +49,7 @@ class Simulation:
                 self.env,
                 random.randint(*self.config["fn_coverage_radius"]),
                 random.choice(self.config["fn_bandwidth"]),
+                [random.choice([0, 1]) for _ in range(CACHE_CONTENT_TYPES)]
             ) for idx in range(self.config["num_fn"])
         ]
         area = self.config["network_area"]
@@ -96,6 +98,7 @@ class Simulation:
                     )
                     allotted_node = self.allocation_policy.allocate(service)
                     self._service_node_mapping[service.id] = allotted_node
+                    self.services[service.id] = service
                     self.total_services += 1
                     if self.total_services >= self.config["total_service_connections"]:
                         break
@@ -107,14 +110,18 @@ class Simulation:
                     fn = self._service_node_mapping[service_id]
                     fn.remove_service(fn.get_service(service_id))
                     _ = self._service_node_mapping.pop(service_id)
+                    self.services.pop(service.id)
         print(
             f'Stopping simulation as {self.total_services} services are served')
-        # if hasattr(self, 'metrics'):
-        #     print(self.get_metrics())
+        if hasattr(self, 'metrics'):
+            print(self.get_metrics())
         self.stop_simulation_event.succeed()
 
     def set_service_node_mapping(self, service, fog_node):
         self._service_node_mapping[service.id] = fog_node
+
+    def get_service_node_mapping(self, service):
+        return self._service_node_mapping[service.id]
 
     # TODO: If possible, run this service in a new thread
     def _orchestrate_services(self, env):

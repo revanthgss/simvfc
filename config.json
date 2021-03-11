@@ -1,5 +1,5 @@
 {
-    "num_fn" : 49,
+    "num_fn" : 36,
     "topology_origin" : [6451065,1871883],
     "network_area": [1675,1515],
     "fn_coverage_radius" : [100,500],
@@ -9,5 +9,5 @@
     "desired_data_rate" : [0.5,2],
     "total_service_connections" : 100,
     "allocation_policy" : "signal_aware",
-    "metrics" : ["service_capability", "throughput","serviceability", "availability"]
+    "metrics" : ["service_capability", "throughput","serviceability", "availability", "energy_consumed"]
 }

@@ -151,6 +151,8 @@ class DynamicResourceOrchestrationModule(OrchestrationModule):
                 feasible_connected_vehicles)).difference(self.D_star[i])
             self.d_star[(j, i)] = (self.D[j].intersection(
                 feasible_connected_vehicles)).difference(self.D_star[j])
+            # self.d_star[(i, j)] = self.D[i].difference(self.D_star[i])
+            # self.d_star[(j, i)] = self.D[j].difference(self.D_star[j])
             self.W[(i, j)] = self.get_weight(
                 i, j, feasible_connected_vehicles)
 

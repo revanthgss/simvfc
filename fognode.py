@@ -3,7 +3,7 @@ from simpy import Interrupt
 import math
 from utils import distance
 import numpy as np
-from constants import TIME_MULTIPLIER
+from constants import TIME_MULTIPLIER, TRANSMIT_POWER_FN2VEHICLE, TRANSMIT_POWER_FN2CLOUD
 
 
 class Node:
@@ -15,7 +15,7 @@ class Node:
         '20': 100*100
     }
 
-    def __init__(self, idx, env, coverage_radius, bandwidth):
+    def __init__(self, idx, env, coverage_radius, bandwidth, cache_array):
         self.id = idx
         self.env = env
         self.coverage_radius = coverage_radius
@@ -26,9 +26,11 @@ class Node:
             env, capacity=self.capacity, init=self.capacity)
         self._vehicle_services = {}
         self.in_service = False
+        self.cache_array = cache_array
         self.overall_throughput = 0
         self.incoming_services = 0
         self.services_served = 0
+        self.energy_consumed = 0
 
     def set_position(self, x, y):
         """Sets the position of a fog node"""
@@ -46,12 +48,12 @@ class Node:
         between the given vehicle and fog node
         """
         # TODO: figure out whether transmit power is 1 kW
-        signal = 1000*self._get_channel_gain(vehicle)
+        signal = TRANSMIT_POWER_FN2VEHICLE*self._get_channel_gain(vehicle)
         noise = self.sigma**2
         interference = 0
         for vehicle_id, obj in self._vehicle_services.items():
             if vehicle.id != obj["service"].vehicle.id:
-                interference += 500 *\
+                interference += 0.5 * TRANSMIT_POWER_FN2VEHICLE *\
                     self._get_channel_gain(obj["service"].vehicle)
         # print(f'sinr={10*math.log10(signal/(noise+interference))}')
         return signal/(noise + interference)
@@ -75,6 +77,8 @@ class Node:
         # Minimum resource blocks is 1
         required_resource_blocks = max(1, self.get_resource_blocks(service))
         self._vehicle_services[service.vehicle.id]['resource_blocks'] = required_resource_blocks
+        req_power = TRANSMIT_POWER_FN2VEHICLE if self.cache_array[
+            service.content_type-1] else TRANSMIT_POWER_FN2CLOUD
         # Allot resources to that vehicle
         start = env.now
         try:
@@ -90,6 +94,8 @@ class Node:
                 return
             yield self.resource_container.get(required_resource_blocks)
             while service.vehicle.id in list(self._vehicle_services.keys()):
+                # For every second add the energy consumed
+                self.energy_consumed += req_power
                 yield env.timeout(TIME_MULTIPLIER)
         except Interrupt as i:
             # print(
