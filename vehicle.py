@@ -8,7 +8,8 @@ class Service:
         self.vehicle = vehicle
         self.id = service_id
         self.desired_data_rate = desired_data_rate
-        self.content_type = random.randint(1, CACHE_CONTENT_TYPES)
+        self.content_type = random.randint(0, CACHE_CONTENT_TYPES-1)
+        self.curr_power_consumed = None
 
 
 class Vehicle:

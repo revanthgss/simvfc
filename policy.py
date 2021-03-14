@@ -19,7 +19,8 @@ class AllocationPolicy:
         self.feasible_fog_nodes = find_feasible_fog_nodes(
             self.fog_nodes, vehicle)
         best_fog_node = self.find_best_fog_node(vehicle)
-        best_fog_node.add_service(service)
+        if best_fog_node:
+            best_fog_node.add_service(service)
         return best_fog_node
 
 
@@ -29,6 +30,8 @@ class SignalAwareAllocationPolicy(AllocationPolicy):
     def find_best_fog_node(self, vehicle):
         sinr_values = [fog_node._get_sinr(vehicle)
                        for fog_node in self.feasible_fog_nodes]
+        if len(sinr_values) == 0:
+            return None
         best_fog_node = self.feasible_fog_nodes[sinr_values.index(
             max(sinr_values))]
         return best_fog_node

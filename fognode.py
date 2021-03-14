@@ -76,9 +76,10 @@ class Node:
         """Allots some resources to vehicles"""
         # Minimum resource blocks is 1
         required_resource_blocks = max(1, self.get_resource_blocks(service))
+        if not service.vehicle.id in self._vehicle_services:
+            # Then it means service has been migrated before even allotting resource blocks
+            return
         self._vehicle_services[service.vehicle.id]['resource_blocks'] = required_resource_blocks
-        req_power = TRANSMIT_POWER_FN2VEHICLE if self.cache_array[
-            service.content_type-1] else TRANSMIT_POWER_FN2CLOUD
         # Allot resources to that vehicle
         start = env.now
         try:
@@ -95,7 +96,7 @@ class Node:
             yield self.resource_container.get(required_resource_blocks)
             while service.vehicle.id in list(self._vehicle_services.keys()):
                 # For every second add the energy consumed
-                self.energy_consumed += req_power
+                self.energy_consumed += service.curr_power_consumed
                 yield env.timeout(TIME_MULTIPLIER)
         except Interrupt as i:
             # print(
@@ -119,9 +120,11 @@ class Node:
         if not migrated:
             self.incoming_services += 1
         service.vehicle.allotted_fog_node = self
-        print(
-            f"Service {service.id} is assigned to fog node {self.id}")
+        # print(
+        #     f"Service {service.id} is assigned to fog node {self.id}")
         self.in_service = True
+        service.curr_power_consumed = TRANSMIT_POWER_FN2VEHICLE if self.cache_array[
+            service.content_type] else TRANSMIT_POWER_FN2CLOUD
         self._vehicle_services[service.vehicle.id] = {
             "service": service,
             "process": self.env.process(

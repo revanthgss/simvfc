@@ -7,6 +7,24 @@ from optimization_solver import OptimizationSolver
 
 class OrchestrationModule:
 
+    def __init__(self, simulation_instance, gamma=1000):
+        self.simulation_instance = simulation_instance
+        self.fog_nodes = self.simulation_instance.fog_nodes
+        self.GAMMA = gamma
+
+    def migrate(self, i, j, vehicle_id):
+        """Migrates all the service that are required from fog node i to fog node j"""
+        services = [item['service']
+                    for item in self.fog_nodes[i].get_vehicle_services().values()]
+        for service in services:
+            if service.vehicle.id == vehicle_id:
+                print(
+                    f'Migrating service {service.id} of vehicle {vehicle_id} from fog node {i} to fog node {j}')
+                self.fog_nodes[i].remove_service(service)
+                self.fog_nodes[j].add_service(service, migrated=True)
+                self.simulation_instance.set_service_node_mapping(
+                    service, self.fog_nodes[j])
+
     def step(self):
         raise NotImplementedError
 
@@ -169,21 +187,7 @@ class DynamicResourceOrchestrationModule(OrchestrationModule):
             self.W = new_W
         return phi
 
-    def migrate(self, i, j, vehicle_id):
-        """Migrates all the service that are required from fog node i to fog node j"""
-        services = [item['service']
-                    for item in self.fog_nodes[i].get_vehicle_services().values()]
-        for service in services:
-            if service.vehicle.id == vehicle_id:
-                print(
-                    f'Migrating service {service.id} of vehicle {vehicle_id} from fog node {i} to fog node {j}')
-                self.fog_nodes[i].remove_service(service)
-                self.fog_nodes[j].add_service(service, migrated=True)
-                self.simulation_instance.set_service_node_mapping(
-                    service, self.fog_nodes[j])
-
     def step(self):
-        self.fog_nodes = self.simulation_instance.fog_nodes
         self.vehicles = self.simulation_instance.mobility_model.vehicles.values()
         self.D = {}
         self.D_star = {}

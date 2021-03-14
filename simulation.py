@@ -7,7 +7,7 @@ from vehicle import Service
 from topology import Topology
 from mobility_model import DynamicMobilityModel
 from policy import SignalAwareAllocationPolicy, CapacityAwareAllocationPolicy
-from orchestration import DynamicResourceOrchestrationModule
+from orchestration import DynamicResourceOrchestrationModule, OrchestrationModule
 from metrics import MetricFactory
 import json
 import random
@@ -41,6 +41,12 @@ class Simulation:
             self.metrics = [MetricFactory(metric)
                             for metric in self.config['metrics']]
             self.env.process(self._compute_metrics(self.env))
+
+        if self.config.get("orchestration_scheme", None) == 'dro':
+            self.orchestration_module = DynamicResourceOrchestrationModule(
+                self)
+        else:
+            self.orchestration_module = OrchestrationModule(self)
 
     def _init_fog_nodes(self):
         self.fog_nodes = [
@@ -97,9 +103,10 @@ class Simulation:
                         random.uniform(*self.config["desired_data_rate"])
                     )
                     allotted_node = self.allocation_policy.allocate(service)
-                    self._service_node_mapping[service.id] = allotted_node
-                    self.services[service.id] = service
-                    self.total_services += 1
+                    if allotted_node:
+                        self._service_node_mapping[service.id] = allotted_node
+                        self.services[service.id] = service
+                        self.total_services += 1
                     if self.total_services >= self.config["total_service_connections"]:
                         break
             yield env.timeout(TIME_MULTIPLIER)
@@ -108,9 +115,10 @@ class Simulation:
                     service_id = random.choice(
                         list(self._service_node_mapping.keys()))
                     fn = self._service_node_mapping[service_id]
-                    fn.remove_service(fn.get_service(service_id))
+
                     _ = self._service_node_mapping.pop(service_id)
-                    self.services.pop(service.id)
+                    self.services.pop(service_id)
+                    fn.remove_service(fn.get_service(service_id))
         print(
             f'Stopping simulation as {self.total_services} services are served')
         if hasattr(self, 'metrics'):
@@ -126,10 +134,6 @@ class Simulation:
     # TODO: If possible, run this service in a new thread
     def _orchestrate_services(self, env):
         """Orchestrate services periodically"""
-        yield env.timeout(TIME_MULTIPLIER)
-        if self.config["orchestration_scheme"] == 'dro':
-            self.orchestration_module = DynamicResourceOrchestrationModule(
-                self)
 
         while True:
             self.orchestration_module.step()
