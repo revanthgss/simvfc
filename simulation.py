@@ -5,8 +5,8 @@ from simpy.resources.store import Store
 from fognode import Node
 from vehicle import Service
 from topology import Topology
-from mobility_model import DynamicMobilityModel
-from policy import SignalAwareAllocationPolicy, CapacityAwareAllocationPolicy
+from mobility_model import DynamicMobilityModel, StaticSimulatedMobilityModel
+from policy import SignalAwareAllocationPolicy, CapacityAwareAllocationPolicy, ContentAwareAllocationPolicy
 from orchestration import DynamicResourceOrchestrationModule, OrchestrationModule
 from metrics import MetricFactory
 import json
@@ -17,13 +17,13 @@ from constants import TIME_MULTIPLIER, CACHE_CONTENT_TYPES
 class Simulation:
 
     def __init__(self, config='./config.json'):
+        self.is_stopped = False
         self.env = Environment()
         self.stop_simulation_event = Event(self.env)
         # Initialise config
         with open(config) as f:
             self.config = json.load(f)
-        self.mobility_model = DynamicMobilityModel(
-            '../dataset/trajectory.csv', self.config)
+        self.mobility_model = StaticSimulatedMobilityModel(self.config)
         self.mean_arrival_rate = self.config["mean_arrival_rate"]
         self.mean_departure_rate = self.config["mean_departure_rate"]
         self.env.process(self._monitor_services(self.env))
@@ -77,6 +77,9 @@ class Simulation:
         elif allocation_policy == 'capacity_aware':
             self.allocation_policy = CapacityAwareAllocationPolicy(
                 self.fog_nodes)
+        elif allocation_policy == 'content_aware':
+            self.allocation_policy = ContentAwareAllocationPolicy(
+                self.fog_nodes)
 
     def _compute_metrics(self, env):
         while True:
@@ -110,6 +113,11 @@ class Simulation:
                     if self.total_services >= self.config["total_service_connections"]:
                         break
             yield env.timeout(TIME_MULTIPLIER)
+            failed_services = filter(
+                lambda s: s.vehicle.allotted_fog_node is None, list(self.services.values()))
+            for service in failed_services:
+                _ = self._service_node_mapping.pop(service.id)
+                self.services.pop(service.id)
             for _ in range(service_departures):
                 if len(self._service_node_mapping.keys()) != 0:
                     service_id = random.choice(
@@ -123,6 +131,7 @@ class Simulation:
             f'Stopping simulation as {self.total_services} services are served')
         if hasattr(self, 'metrics'):
             print(self.get_metrics())
+        self.is_stopped = True
         self.stop_simulation_event.succeed()
 
     def set_service_node_mapping(self, service, fog_node):
@@ -135,6 +144,7 @@ class Simulation:
     def _orchestrate_services(self, env):
         """Orchestrate services periodically"""
 
+        yield env.timeout(TIME_MULTIPLIER)
         while True:
             self.orchestration_module.step()
             yield env.timeout(TIME_MULTIPLIER)

@@ -40,7 +40,7 @@ class Node:
         return (self.services_served, self.incoming_services)
 
     def _get_channel_gain(self, vehicle):
-        return 1/distance(self.position, vehicle.get_position())**3.5
+        return 1/(distance(self.position, vehicle.get_position())+0.00001)**3.5
 
     def _get_sinr(self, vehicle):
         """
@@ -124,7 +124,7 @@ class Node:
         #     f"Service {service.id} is assigned to fog node {self.id}")
         self.in_service = True
         service.curr_power_consumed = TRANSMIT_POWER_FN2VEHICLE if self.cache_array[
-            service.content_type] else TRANSMIT_POWER_FN2CLOUD
+            service.content_type] else (TRANSMIT_POWER_FN2CLOUD + TRANSMIT_POWER_FN2VEHICLE)
         self._vehicle_services[service.vehicle.id] = {
             "service": service,
             "process": self.env.process(

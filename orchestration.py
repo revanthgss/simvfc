@@ -32,8 +32,7 @@ class OrchestrationModule:
 class DynamicResourceOrchestrationModule(OrchestrationModule):
 
     def __init__(self, simulation_instance, gamma=1000):
-        self.simulation_instance = simulation_instance
-        self.GAMMA = gamma
+        super().__init__(simulation_instance, gamma)
 
     def get_feasible_connected_vehicles(self, i, j):
         """Returns the ids of connected vehicles that are possible for service migration"""

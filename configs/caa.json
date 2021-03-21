@@ -9,5 +9,5 @@
     "desired_data_rate" : [0.5,2],
     "total_service_connections" : 1000,
     "allocation_policy" : "capacity_aware",
-    "metrics" : ["service_capability", "throughput","serviceability", "availability"]
+    "metrics" : ["service_capability", "throughput","serviceability", "energy_consumed"]
 }

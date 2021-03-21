@@ -10,5 +10,5 @@
     "total_service_connections" : 1000,
     "allocation_policy" : "signal_aware",
     "orchestration_scheme" : "dro",
-    "metrics" : ["service_capability", "throughput","serviceability", "availability"]
+    "metrics" : ["service_capability", "throughput","serviceability", "energy_consumed"]
 }

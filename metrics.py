@@ -83,7 +83,13 @@ class EnergyConsumed(Metric):
         super().__init__()
 
     def compute(self, nodes):
-        self._values.append(sum([node.energy_consumed for node in nodes]))
+        tss = sum([node.get_serviceability_metrics()[0] for node in nodes])
+        total_energy = sum([node.energy_consumed for node in nodes])
+        self._values.append(total_energy)
+        # if tss == 0:
+        #     self._values.append(total_energy)
+        # else:
+        #     self._values.append(total_energy/tss)
 
 
 def MetricFactory(metric_type):
