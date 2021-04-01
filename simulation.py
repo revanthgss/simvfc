@@ -1,17 +1,21 @@
+import time
 from simpy.core import Environment
 from simpy.rt import RealtimeEnvironment
 from simpy.events import Event
 from simpy.resources.store import Store
 from fognode import Node
 from vehicle import Service
+import pandas as pd
 from topology import Topology
 from mobility_model import DynamicMobilityModel, StaticSimulatedMobilityModel
 from policy import SignalAwareAllocationPolicy, CapacityAwareAllocationPolicy, ContentAwareAllocationPolicy
-from orchestration import DynamicResourceOrchestrationModule, OrchestrationModule
+from orchestration import DynamicResourceOrchestrationModule, OrchestrationModule, RLOrchestrationModule
 from metrics import MetricFactory
 import json
 import random
 from constants import TIME_MULTIPLIER, CACHE_CONTENT_TYPES
+import tensorflow as tf
+tf.logging.set_verbosity(tf.logging.ERROR)
 
 
 class Simulation:
@@ -45,6 +49,8 @@ class Simulation:
         if self.config.get("orchestration_scheme", None) == 'dro':
             self.orchestration_module = DynamicResourceOrchestrationModule(
                 self)
+        elif self.config.get("orchestration_scheme", None) == 'rl':
+            self.orchestration_module = RLOrchestrationModule(self)
         else:
             self.orchestration_module = OrchestrationModule(self)
 
@@ -66,7 +72,7 @@ class Simulation:
         frame_id = 0
         while True:
             self.mobility_model.update_vehicles(env, frame_id)
-            yield env.timeout(0.1*TIME_MULTIPLIER)
+            yield env.timeout(TIME_MULTIPLIER)
             frame_id += 1
 
     def _init_policy(self):
@@ -151,3 +157,10 @@ class Simulation:
 
     def run(self):
         self.env.run(until=self.stop_simulation_event)
+
+
+s = Simulation()
+now = time.time()
+s.run()
+print(s.get_metrics())
+print('Time taken', time.time()-now)

@@ -120,8 +120,8 @@ class Node:
         if not migrated:
             self.incoming_services += 1
         service.vehicle.allotted_fog_node = self
-        # print(
-        #     f"Service {service.id} is assigned to fog node {self.id}")
+        print(
+            f"Service {service.id} is assigned to fog node {self.id}")
         self.in_service = True
         service.curr_power_consumed = TRANSMIT_POWER_FN2VEHICLE if self.cache_array[
             service.content_type] else (TRANSMIT_POWER_FN2CLOUD + TRANSMIT_POWER_FN2VEHICLE)

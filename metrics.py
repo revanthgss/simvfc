@@ -1,3 +1,5 @@
+import time
+
 
 class Metric:
 
@@ -76,6 +78,22 @@ class Availability(Metric):
                                 tis)
 
 
+class AVGEnergyConsumed(Metric):
+
+    def __init__(self):
+        self.name = 'avg_energy_consumed'
+        super().__init__()
+
+    def compute(self, nodes):
+        tss = sum([node.get_serviceability_metrics()[0] for node in nodes])
+        total_energy = sum([node.energy_consumed for node in nodes])
+        # self._values.append(total_energy)
+        if tss == 0:
+            self._values.append(total_energy)
+        else:
+            self._values.append(total_energy/tss)
+
+
 class EnergyConsumed(Metric):
 
     def __init__(self):
@@ -83,13 +101,19 @@ class EnergyConsumed(Metric):
         super().__init__()
 
     def compute(self, nodes):
-        tss = sum([node.get_serviceability_metrics()[0] for node in nodes])
         total_energy = sum([node.energy_consumed for node in nodes])
         self._values.append(total_energy)
-        # if tss == 0:
-        #     self._values.append(total_energy)
-        # else:
-        #     self._values.append(total_energy/tss)
+
+
+class ExecTime(Metric):
+
+    def __init__(self):
+        self.name = 'execution_time'
+        self.start = time.time()
+        super().__init__()
+
+    def compute(self, nodes):
+        self._values.append(time.time()-self.start)
 
 
 def MetricFactory(metric_type):
@@ -99,7 +123,9 @@ def MetricFactory(metric_type):
         "throughput": Throughput,
         "serviceability": Serviceability,
         "availability": Availability,
-        "energy_consumed": EnergyConsumed
+        "energy_consumed": EnergyConsumed,
+        "avg_energy_consumed": AVGEnergyConsumed,
+        "execution_time": ExecTime,
     }
 
     return metrics[metric_type]()
