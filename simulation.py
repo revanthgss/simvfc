@@ -159,8 +159,8 @@ class Simulation:
         self.env.run(until=self.stop_simulation_event)
 
 
-s = Simulation()
-now = time.time()
-s.run()
-print(s.get_metrics())
-print('Time taken', time.time()-now)
+# s = Simulation()
+# now = time.time()
+# s.run()
+# print(s.get_metrics())
+# print('Time taken', time.time()-now)
